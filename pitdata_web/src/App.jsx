@@ -5,14 +5,15 @@ import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
 import SessionDetail from './pages/SessionDetail'
 import Live from './pages/Live'
+import Analysis from './pages/Analysis'
 import Layout from './components/Layout'
 
 export default function App() {
   const { user, loading, init } = useAuth()
   useEffect(() => { init() }, [])
   if (loading) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',
-      color:'#6b7d99',fontFamily:'JetBrains Mono',fontSize:12}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',
+      height:'100vh',color:'#6b7d99',fontFamily:'JetBrains Mono',fontSize:12}}>
       Cargando...
     </div>
   )
@@ -20,8 +21,9 @@ export default function App() {
     <Routes>
       <Route path="/auth" element={!user ? <Auth /> : <Navigate to="/" />} />
       <Route element={user ? <Layout /> : <Navigate to="/auth" />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/live" element={<Live />} />
+        <Route path="/"         element={<Dashboard />} />
+        <Route path="/live"     element={<Live />} />
+        <Route path="/analysis" element={<Analysis />} />
         <Route path="/session/:id" element={<SessionDetail />} />
       </Route>
     </Routes>
