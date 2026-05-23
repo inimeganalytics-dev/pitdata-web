@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { sb } from '../lib/api'
 
 function fmtMs(ms) {
@@ -15,14 +15,15 @@ function tyreColor(t) {
 const COLORS = ['#00c8f0', '#00e676', '#ffd600', '#b388ff']
 
 function PedalBar({ val, color }) {
+  const pct = Math.min(100, Math.round((val || 0) * 100))
   return (
     <div style={{flex:1,display:'flex',flexDirection:'column',gap:3,alignItems:'center'}}>
       <div style={{width:14,height:56,background:'#07090d',borderRadius:3,overflow:'hidden',
         display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
         <div style={{width:'100%',background:color,borderRadius:'2px 2px 0 0',
-          height:`${Math.min(100,Math.round((val||0)*100))}%`,transition:'height .1s'}} />
+          height:`${pct}%`,transition:'height .15s linear'}} />
       </div>
-      <div style={{fontSize:9,fontFamily:'JetBrains Mono',color:'#6b7d99'}}>{Math.round((val||0)*100)}%</div>
+      <div style={{fontSize:9,fontFamily:'JetBrains Mono',color:'#6b7d99'}}>{pct}%</div>
     </div>
   )
 }
@@ -33,45 +34,48 @@ function PilotCard({ pilot, color }) {
   const tt = [pilot.tyre_temp_fl, pilot.tyre_temp_fr, pilot.tyre_temp_rl, pilot.tyre_temp_rr]
   const tIds = ['FL','FR','RL','RR']
 
+  // Calcular segundos desde última actualización
+  const secsSince = pilot.updated_at
+    ? Math.round((Date.now() - new Date(pilot.updated_at).getTime()) / 1000)
+    : null
+  const isStale = secsSince !== null && secsSince > 5
+
   return (
     <div style={{
       background:'#0c1018',
-      border:`1px solid ${pilot.is_online ? color+'66' : '#1c2535'}`,
+      border:`1px solid ${pilot.is_online && !isStale ? color+'66' : '#1c2535'}`,
       borderRadius:12, padding:16, display:'flex', flexDirection:'column', gap:10,
-      opacity: pilot.is_online ? 1 : 0.45, transition:'all .3s'
+      opacity: pilot.is_online && !isStale ? 1 : 0.45,
     }}>
       {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <div style={{width:8,height:8,borderRadius:'50%',background:pilot.is_online?color:'#2e3d55',
-            boxShadow:pilot.is_online?`0 0 8px ${color}`:'none',transition:'all .3s'}} />
+          <div style={{width:8,height:8,borderRadius:'50%',
+            background: pilot.is_online && !isStale ? color : '#2e3d55',
+            boxShadow: pilot.is_online && !isStale ? `0 0 8px ${color}` : 'none',
+          }} />
           <span style={{fontSize:16,fontWeight:600,color:'#dce6f5'}}>{pilot.username}</span>
           {pilot.track && <span style={{fontSize:10,color:'#6b7d99',fontFamily:'JetBrains Mono'}}>{pilot.track}</span>}
         </div>
-        <span style={{fontSize:9,fontFamily:'JetBrains Mono',color:pilot.is_online?color:'#2e3d55',
-          letterSpacing:'.1em',textTransform:'uppercase'}}>
-          {pilot.is_online ? '● EN PISTA' : 'offline'}
+        <span style={{fontSize:9,fontFamily:'JetBrains Mono',letterSpacing:'.1em',textTransform:'uppercase',
+          color: pilot.is_online && !isStale ? color : '#2e3d55'}}>
+          {pilot.is_online && !isStale ? '● EN PISTA' : isStale ? `sin señal ${secsSince}s` : 'offline'}
         </span>
       </div>
 
       {pilot.is_online && <>
         {/* Tiempos */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
-          <div style={{background:'#07090d',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#2e3d55',letterSpacing:'.08em',marginBottom:2}}>VUELTA</div>
-            <div style={{fontFamily:'JetBrains Mono',fontSize:12,color:'#dce6f5'}}>{fmtMs(pilot.lap_time_ms)}</div>
-          </div>
-          <div style={{background:'#07090d',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#2e3d55',letterSpacing:'.08em',marginBottom:2}}>MEJOR</div>
-            <div style={{fontFamily:'JetBrains Mono',fontSize:12,color:'#b388ff'}}>{fmtMs(pilot.best_time_ms)}</div>
-          </div>
-          <div style={{background:'#07090d',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
-            <div style={{fontSize:9,color:'#2e3d55',letterSpacing:'.08em',marginBottom:2}}>DELTA</div>
-            <div style={{fontFamily:'JetBrains Mono',fontSize:12,
-              color:dMs<-50?'#00e676':dMs>50?'#ff3351':'#6b7d99'}}>
-              {(dMs<=0?'':'+')+(dMs/1000).toFixed(3)}
+          {[
+            ['VUELTA',  fmtMs(pilot.lap_time_ms), '#dce6f5'],
+            ['MEJOR',   fmtMs(pilot.best_time_ms), '#b388ff'],
+            ['DELTA',   (dMs<=0?'':'+')+(dMs/1000).toFixed(3), dMs<-50?'#00e676':dMs>50?'#ff3351':'#6b7d99'],
+          ].map(([lbl,val,col]) => (
+            <div key={lbl} style={{background:'#07090d',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
+              <div style={{fontSize:9,color:'#2e3d55',letterSpacing:'.08em',marginBottom:2}}>{lbl}</div>
+              <div style={{fontFamily:'JetBrains Mono',fontSize:12,color:col}}>{val}</div>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* Dinámica */}
@@ -114,7 +118,7 @@ function PilotCard({ pilot, color }) {
           ))}
         </div>
 
-        {/* Temps neumáticos */}
+        {/* Temps */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:4}}>
           {tIds.map((id,i) => (
             <div key={id} style={{background:'#07090d',borderRadius:5,padding:'4px 6px',textAlign:'center'}}>
@@ -132,51 +136,87 @@ function PilotCard({ pilot, color }) {
 }
 
 export default function Live() {
-  const [pilots, setPilots] = useState([])
+  const [pilots, setPilots]       = useState([])
   const [lastUpdate, setLastUpdate] = useState(null)
+  const pilotsRef = useRef([])
+
+  const fetchAll = async () => {
+    const { data } = await sb.from('pitdata_live').select('*').order('username')
+    if (data) {
+      pilotsRef.current = data
+      setPilots([...data])
+      setLastUpdate(new Date())
+    }
+  }
 
   useEffect(() => {
     // Carga inicial
-    sb.from('pitdata_live').select('*').order('username')
-      .then(({ data }) => { if (data) setPilots(data); setLastUpdate(new Date()) })
+    fetchAll()
 
-    // Realtime — updates instantáneos via WebSocket
-    const channel = sb
-      .channel('live-team')
+    // Polling cada 1 segundo como base
+    const poll = setInterval(fetchAll, 1000)
+
+    // Realtime para updates instantáneos (complementa el polling)
+    const channel = sb.channel('live-team-v2')
       .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'pitdata_live'
-      }, ({ eventType, new: updated, old: removed }) => {
-        if (eventType === 'DELETE') {
-          setPilots(prev => prev.filter(p => p.user_id !== removed.user_id))
-        } else {
-          setPilots(prev => {
-            const idx = prev.findIndex(p => p.user_id === updated.user_id)
-            if (idx >= 0) { const n=[...prev]; n[idx]=updated; return n }
-            return [...prev, updated]
-          })
-        }
+        event: 'UPDATE', schema: 'public', table: 'pitdata_live'
+      }, ({ new: updated }) => {
+        setPilots(prev => {
+          const idx = prev.findIndex(p => p.user_id === updated.user_id)
+          if (idx >= 0) {
+            const next = [...prev]
+            next[idx] = updated
+            return next
+          }
+          return [...prev, updated]
+        })
         setLastUpdate(new Date())
       })
-      .subscribe()
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'pitdata_live'
+      }, ({ new: inserted }) => {
+        setPilots(prev => {
+          if (prev.find(p => p.user_id === inserted.user_id)) return prev
+          return [...prev, inserted]
+        })
+        setLastUpdate(new Date())
+      })
+      .subscribe((status) => {
+        console.log('Realtime status:', status)
+      })
 
-    return () => sb.removeChannel(channel)
+    return () => {
+      clearInterval(poll)
+      sb.removeChannel(channel)
+    }
   }, [])
 
-  const online  = pilots.filter(p => p.is_online)
-  const offline = pilots.filter(p => !p.is_online)
-  const sorted  = [...online, ...offline]
+  const online = pilots.filter(p => {
+    const secsSince = p.updated_at
+      ? (Date.now() - new Date(p.updated_at).getTime()) / 1000
+      : 999
+    return p.is_online && secsSince < 10
+  })
+  const sorted = [
+    ...pilots.filter(p => {
+      const s = p.updated_at ? (Date.now()-new Date(p.updated_at).getTime())/1000 : 999
+      return p.is_online && s < 10
+    }),
+    ...pilots.filter(p => {
+      const s = p.updated_at ? (Date.now()-new Date(p.updated_at).getTime())/1000 : 999
+      return !p.is_online || s >= 10
+    })
+  ]
 
   return (
     <div style={{padding:24,maxWidth:1200,margin:'0 auto'}}>
-      {/* Header */}
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24}}>
         <div>
           <div style={{fontSize:20,fontWeight:600,color:'#dce6f5',display:'flex',alignItems:'center',gap:10}}>
             Live — Equipo
             {online.length > 0 && (
               <span style={{fontSize:12,color:'#00e676',fontFamily:'JetBrains Mono',
-                background:'#00e67618',border:'1px solid #00e67644',
-                padding:'2px 8px',borderRadius:20}}>
+                background:'#00e67618',border:'1px solid #00e67644',padding:'2px 8px',borderRadius:20}}>
                 {online.length} en pista
               </span>
             )}
@@ -187,7 +227,6 @@ export default function Live() {
         </div>
       </div>
 
-      {/* Cards */}
       {pilots.length === 0 ? (
         <div style={{textAlign:'center',padding:'80px 0',color:'#2e3d55'}}>
           <div style={{fontSize:40,marginBottom:16}}>🏁</div>
